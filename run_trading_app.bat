@@ -20,6 +20,6 @@ echo Press Refresh Picks button for latest data
 echo.
 
 cd /d "%~dp0"
-python -m streamlit run trading_app.py --server.port=8509 --browser.gatherUsageStats=false
+python -m streamlit run stocks_dashboard.py --server.port=8509 --browser.gatherUsageStats=false
 
 pause
