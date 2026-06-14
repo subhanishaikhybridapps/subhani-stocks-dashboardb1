@@ -289,7 +289,7 @@ with c1:
 with c2:
     st.markdown(f"🕐 **{now.strftime('%d %b %Y  %H:%M:%S IST')}**")
 with c3:
-    if st.button("🔄 Refresh All Data", use_container_width=True, type="primary"):
+    if st.button("🔄 Refresh All Data", width='stretch', type="primary"):
         st.cache_data.clear()
         st.rerun()
 
@@ -395,7 +395,7 @@ st.markdown("""
 
 if intraday_picks:
     df_i = pd.DataFrame(intraday_picks)
-    st.dataframe(df_i, use_container_width=True,
+    st.dataframe(df_i, width='stretch',
                  height=min(420, 60+len(df_i)*38),
                  hide_index=True,
                  column_config={
@@ -430,7 +430,7 @@ st.markdown("""
 
 if swing_picks:
     df_s = pd.DataFrame(swing_picks)
-    st.dataframe(df_s, use_container_width=True,
+    st.dataframe(df_s, width='stretch',
                  height=min(420, 60+len(df_s)*38),
                  hide_index=True,
                  column_config={
@@ -481,7 +481,7 @@ with st.expander("➕ Add New Trade (click to open)", expanded=len(trades)==0):
         new_t2   = st.number_input("Target 2 ₹ (sell rest)", min_value=1.0, value=110.0, step=0.5)
         new_date = st.date_input("Buy Date", value=datetime.now(IST).date())
 
-    if st.button("✅ Save Trade", type="primary", use_container_width=True):
+    if st.button("✅ Save Trade", type="primary", width='stretch'):
         if new_sym:
             trades.append({"symbol":new_sym,"type":new_type,"qty":int(new_qty),
                            "buy_price":float(new_buy),"stop_loss":float(new_sl),
@@ -551,7 +551,7 @@ if trades:
                 </div>
                 <div style="background:#080c18;border-radius:6px;padding:6px 10px">
                     <div style="color:#667;font-size:0.72rem">RSI Now</div>
-                    <div style="font-weight:700">{s_data['rsi']:.0f if s_data else 'N/A'}</div>
+                    <div style="font-weight:700">{(f"{s_data['rsi']:.0f}" if s_data else 'N/A')}</div>
                 </div>
                 <div style="background:#080c18;border-radius:6px;padding:6px 10px">
                     <div style="color:#667;font-size:0.72rem">EMA Trend</div>
@@ -567,10 +567,10 @@ if trades:
 
         ca,cb,cc=st.columns([1,1,3])
         with ca:
-            if st.button("🗑️ Remove",key=f"del_{i}",use_container_width=True):
+            if st.button("🗑️ Remove",key=f"del_{i}",width='stretch'):
                 trades.pop(i); save_data(trades,watchlist,closed_trades); st.rerun()
         with cb:
-            if st.button(f"✅ Closed",key=f"cls_{i}",use_container_width=True):
+            if st.button(f"✅ Closed",key=f"cls_{i}",width='stretch'):
                 closed_trades.append({**t,"close_price":ltp,"close_date":str(datetime.now(IST).date()),"pnl_pct":pnl_pct,"pnl_amt":pnl_amt})
                 trades.pop(i); save_data(trades,watchlist,closed_trades); st.rerun()
 else:
@@ -597,7 +597,7 @@ wc1,wc2=st.columns([3,1])
 with wc1:
     new_watch=st.text_input("Add stock to watchlist", placeholder="Type symbol e.g. WIPRO", label_visibility="collapsed").upper().strip()
 with wc2:
-    if st.button("➕ Add to Watchlist", use_container_width=True):
+    if st.button("➕ Add to Watchlist", width='stretch'):
         if new_watch and new_watch not in watchlist:
             watchlist.append(new_watch)
             save_data(trades, watchlist, closed_trades)
@@ -636,7 +636,7 @@ if watchlist:
                            "Swing SL":"N/A","Swing T1":"N/A","Ready?":"❓ No data"})
 
     df_wl=pd.DataFrame(wl_rows)
-    st.dataframe(df_wl,use_container_width=True,
+    st.dataframe(df_wl,width='stretch',
                  height=min(420,60+len(df_wl)*38),
                  hide_index=True,
                  column_config={
@@ -685,7 +685,7 @@ if closed_trades:
                     "P&L ₹":f"₹{t.get('pnl_amt',0):+,.0f}",
                     "Date":t.get("buy_date",""),"Result":"✅ Win" if t.get("pnl_pct",0)>0 else "❌ Loss"}
                    for t in closed_trades]
-        st.dataframe(pd.DataFrame(hist_rows),use_container_width=True,hide_index=True)
+        st.dataframe(pd.DataFrame(hist_rows),width='stretch',hide_index=True)
         if st.button("🗑️ Clear History"):
             closed_trades.clear()
             save_data(trades,watchlist,closed_trades)
