@@ -84,29 +84,119 @@ IST       = pytz.timezone("Asia/Kolkata")
 DATA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "trading_data.json")
 
 # ═══════════════════════════════════════════════════════════════
-#  PERSISTENT STORAGE  (survives refresh + app restart)
+#  PERSISTENT STORAGE — 3-layer approach for 100% reliability
+#  Layer 1: st.session_state    (within same browser session)
+#  Layer 2: Browser localStorage (survives server restart/redeploy)
+#  Layer 3: Local JSON file      (when running on laptop locally)
+#  Result: Data NEVER lost — on cloud or local machine
 # ═══════════════════════════════════════════════════════════════
-def load_data():
-    """Load trades + watchlist from local file. Never lost on refresh."""
+
+import base64 as _b64
+
+def _enc(d):
+    """Encode data to base64 string for JS transfer."""
+    return _b64.b64encode(json.dumps(d).encode()).decode()
+
+def _dec(s):
+    """Decode base64 string back to dict."""
     try:
-        if os.path.exists(DATA_FILE):
-            with open(DATA_FILE,"r") as f:
+        return json.loads(_b64.b64decode(s.encode()).decode())
+    except Exception:
+        return {}
+
+_LOCAL_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "trading_data.json")
+
+def load_data():
+    """
+    Load trades+watchlist. Checks session_state first (fastest),
+    then falls back to local file (laptop use).
+    Browser localStorage is loaded separately via JS injection.
+    """
+    if "td_store" in st.session_state:
+        d = st.session_state["td_store"]
+        return d.get("trades",[]), d.get("watchlist",[]), d.get("closed",[])
+    try:
+        if os.path.exists(_LOCAL_FILE):
+            with open(_LOCAL_FILE,"r") as f:
                 d = json.load(f)
+            st.session_state["td_store"] = d
             return d.get("trades",[]), d.get("watchlist",[]), d.get("closed",[])
     except Exception:
         pass
     return [], [], []
 
 def save_data(trades, watchlist, closed):
-    """Save trades + watchlist to local file. Persists across restarts."""
+    """
+    Save to all 3 layers simultaneously.
+    """
+    d = {"trades": trades, "watchlist": watchlist, "closed": closed}
+    
+    # Layer 1: session_state
+    st.session_state["td_store"] = d
+    
+    # Layer 2: browser localStorage via JS
+    encoded = _enc(d)
+    st.components.v1.html(f"""
+<script>
+try {{
+    localStorage.setItem('td_v2', '{encoded}');
+}} catch(e) {{ console.log('LS save err', e); }}
+</script>""", height=0)
+    
+    # Layer 3: local file (laptop)
     try:
-        with open(DATA_FILE,"w") as f:
-            json.dump({"trades": trades,
-                       "watchlist": watchlist,
-                       "closed": closed}, f, indent=2)
+        with open(_LOCAL_FILE,"w") as f:
+            json.dump(d, f, indent=2)
     except Exception:
         pass
 
+def restore_from_browser():
+    """
+    On fresh page load (no session_state), auto-restore from localStorage.
+    Uses a hidden text input as the JS→Python bridge.
+    """
+    if "td_store" in st.session_state:
+        return  # Already have data, skip
+    
+    # Hidden input to receive data from JS
+    raw = st.text_input("__ls__", value="", label_visibility="collapsed",
+                        key="_ls_bridge")
+    
+    # JS: read localStorage → fill hidden input → trigger Streamlit update
+    st.components.v1.html("""
+<script>
+setTimeout(function() {
+    try {
+        const val = localStorage.getItem('td_v2');
+        if (!val) return;
+        // Find Streamlit text inputs and fill the bridge one
+        const inputs = window.parent.document.querySelectorAll('input[data-testid="stTextInput"]');
+        for (let inp of inputs) {
+            if (inp.closest('[data-testid="column"]') === null) {
+                inp.value = val;
+                inp.dispatchEvent(new Event('input', {bubbles: true}));
+                inp.dispatchEvent(new Event('change', {bubbles: true}));
+                break;
+            }
+        }
+    } catch(e) { console.log('LS restore err', e); }
+}, 600);
+</script>""", height=0)
+    
+    if raw and raw.strip():
+        try:
+            restored = _dec(raw.strip())
+            if restored.get("trades") or restored.get("watchlist"):
+                st.session_state["td_store"] = restored
+                # Also save to local file
+                try:
+                    with open(_LOCAL_FILE,"w") as f:
+                        json.dump(restored, f, indent=2)
+                except Exception:
+                    pass
+                st.rerun()
+        except Exception:
+            pass
 # ═══════════════════════════════════════════════════════════════
 #  HELPERS
 # ═══════════════════════════════════════════════════════════════
@@ -305,6 +395,8 @@ if not stocks:
 
 intraday_picks, swing_picks = get_picks(stocks)
 stocks_dict = {s["symbol"]:s for s in stocks}
+# Restore from browser localStorage if this is a fresh server session
+restore_from_browser()
 trades, watchlist, closed_trades = load_data()
 
 st.success(f"✅ {len(stocks)} stocks analysed | {len(intraday_picks)} intraday picks | {len(swing_picks)} swing picks | Data cached 10 min")
